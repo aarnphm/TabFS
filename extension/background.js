@@ -61,6 +61,19 @@ const utf8ArrayToString = (function() {
   return utf8 => decoder.decode(utf8);
 })();
 
+// mv3 helper: execute script in tab context
+// replaces browser.tabs.executeScript(tabId, {code}) which is mv2-only
+async function executeScriptInTab(tabId, code, allFrames = false) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId, allFrames },
+    func: (codeToEval) => eval(codeToEval),
+    args: [code],
+    world: 'MAIN' // run in page context, not isolated world
+  });
+  // mv2 returned [result], mv3 returns [{result}]
+  return results.map(r => r.result);
+}
+
 // btoa cannot be used on Uint8Arrays or strings containing utf8 characters.
 // This is the best solution per https://stackoverflow.com/a/66046176
 const utf8ArrayToBase64 = async (data) => {
@@ -82,7 +95,9 @@ const utf8ArrayToBase64 = async (data) => {
 };
 
 // global so it can be hot-reloaded
-window.Routes = {};
+// in service worker context, use globalThis instead of window
+const Routes = {};
+globalThis.Routes = Routes;
 
 // Helper function: you provide getData and setData functions that define
 // the contents of an entire file => it returns a proper route handler
@@ -209,7 +224,7 @@ Routes["/tabs/create"] = {
   usage: 'echo "https://www.google.com" > $0',
   async write({buf}) {
     const url = buf.trim();
-    await browser.tabs.create({url});
+    await chrome.tabs.create({url});
     return {size: stringToUtf8Array(buf).length};
   },
   async truncate() { return {}; }
@@ -226,7 +241,7 @@ Routes["/tabs/by-title"] = {
     };
   },
   async readdir() {
-    const tabs = await browser.tabs.query({});
+    const tabs = await chrome.tabs.query({});
     return { entries: [".", "..", ...tabs.map(tab => sanitize(String(tab.title)) + "." + String(tab.id))] };
   }
 };
@@ -240,7 +255,7 @@ It's a symbolic link to the folder /tabs/by-id/#TAB_ID.`,
     return { buf: "../by-id/" + tabId };
   },
   async unlink({tabId}) {
-    await browser.tabs.remove(tabId);
+    await chrome.tabs.remove(tabId);
     return {};
   }
 };
@@ -256,7 +271,7 @@ Routes["/tabs/by-window"] = {
     };
   },
   async readdir() {
-    const tabs = await browser.tabs.query({});
+    const tabs = await chrome.tabs.query({});
     return { entries: [".", "..", ...tabs.map(tab => sanitize(String(tab.windowId) + "." + String(tab.title)) + "." + String(tab.id))] };
   }
 };
@@ -270,7 +285,7 @@ It's a symbolic link to the folder /tabs/by-id/#TAB_ID.`,
     return { buf: "../by-id/" + tabId };
   },
   async unlink({tabId}) {
-    await browser.tabs.remove(tabId);
+    await chrome.tabs.remove(tabId);
     return {};
   }
 };
@@ -280,7 +295,7 @@ Routes["/tabs/last-focused"] = {
   description: `Represents the most recently focused tab.
 It's a symbolic link to the folder /tabs/by-id/[ID of most recently focused tab].`,
   async readlink() {
-    const id = (await browser.tabs.query({ active: true, lastFocusedWindow: true }))[0].id;
+    const id = (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0].id;
     return { buf: "by-id/" + id };
   }
 };
@@ -289,7 +304,7 @@ Routes["/tabs/by-id"] = {
   description: `Open tabs, organized by ID; each subfolder represents an open tab.`,
   usage: 'ls $0',
   async readdir() {
-    const tabs = await browser.tabs.query({});
+    const tabs = await chrome.tabs.query({});
     return { entries: [".", "..", ...tabs.map(tab => String(tab.id))] };
   }
 };
@@ -315,15 +330,15 @@ Routes["/tabs/by-id"] = {
 
 (function() {
   const routeForTab = (readHandler, writeHandler) => makeRouteWithContents(async ({tabId}) => {
-    const tab = await browser.tabs.get(tabId);
+    const tab = await chrome.tabs.get(tabId);
     return readHandler(tab);
 
   }, writeHandler ? async ({tabId}, buf) => {
-    await browser.tabs.update(tabId, writeHandler(buf));
+    await chrome.tabs.update(tabId, writeHandler(buf));
   } : undefined);
 
   const routeFromScript = code => makeRouteWithContents(async ({tabId}) => {
-    return (await browser.tabs.executeScript(tabId, {code}))[0];
+    return (await executeScriptInTab(tabId, code))[0];
   });
 
   Routes["/tabs/by-id/#TAB_ID/url.txt"] = {
@@ -423,7 +438,7 @@ function createWritableDirectory() {
       const code = evals.directory[req.path];
       const allFrames = req.path.endsWith('.all-frames.js');
       // TODO: return other results beyond [0] (when all-frames is on)
-      const result = (await browser.tabs.executeScript(req.tabId, {code, allFrames}))[0];
+      const result = (await executeScriptInTab(req.tabId, code, allFrames))[0];
       evals.directory[req.path + '.result'] = JSON.stringify(result) + '\n';
       return ret;
     }
@@ -453,7 +468,7 @@ Read that file to evaluate and return the current value of that JS expression.`,
     async mknod({tabId, expr, mode}) {
       watches[tabId] = watches[tabId] || {};
       watches[tabId][expr] = async function() {
-        return (await browser.tabs.executeScript(tabId, {code: expr}))[0];
+        return (await executeScriptInTab(tabId, expr))[0];
       };
       return {};
     },
@@ -476,7 +491,7 @@ Read that file to evaluate and return the current value of that JS expression.`,
 Routes["/windows/#WINDOW_ID/create"] = {
     async write({windowId, buf}) {
         const url = buf.trim();
-        await browser.tabs.create({ windowId: windowId, url: url });
+        await chrome.tabs.create({ windowId: windowId, url: url });
         return {size: stringToUtf8Array(buf).length};
     },
     async truncate() { return {}; }
@@ -485,7 +500,7 @@ Routes["/tabs/by-id/#TAB_ID/window"] = {
   description: `The window that this tab lives in;
 a symbolic link to the folder /windows/[id for this window].`,
   async readlink({tabId}) {
-    const tab = await browser.tabs.get(tabId);
+    const tab = await chrome.tabs.get(tabId);
     return { buf: "../../../windows/" + tab.windowId };
   }
 };
@@ -499,7 +514,7 @@ see https://developer.chrome.com/extensions/tabs.`,
           'echo discard > $0'],
   async write({tabId, buf}) {
     const command = buf.trim();
-    await browser.tabs[command](tabId);
+    await chrome.tabs[command](tabId);
     return {size: stringToUtf8Array(buf).length};
   },
   async truncate({size}) { return {}; }
@@ -634,31 +649,31 @@ Routes["/tabs/by-id/#TAB_ID/inputs"] = {
     // TODO: assign new IDs to inputs without them?
     const code = `Array.from(document.querySelectorAll('textarea, input[type=text]'))
                     .map(e => e.id).filter(id => id)`;
-    const ids = (await browser.tabs.executeScript(tabId, {code}))[0];
+    const ids = (await executeScriptInTab(tabId, code))[0];
     return { entries: [".", "..", ...ids.map(id => `${id}.txt`)] };
   }
 };
 Routes["/tabs/by-id/#TAB_ID/inputs/:INPUT_ID.txt"] = makeRouteWithContents(async ({tabId, inputId}) => {
   const code = `document.getElementById('${inputId}').value`;
-  const inputValue = (await browser.tabs.executeScript(tabId, {code}))[0];
+  const inputValue = (await executeScriptInTab(tabId, code))[0];
   if (inputValue === null) { throw new UnixError(unix.ENOENT); } /* FIXME: hack to deal with if inputId isn't valid */
   return inputValue;
 
 }, async ({tabId, inputId}, buf) => {
   const code = `document.getElementById('${inputId}').value = unescape('${escape(buf)}')`;
-  await browser.tabs.executeScript(tabId, {code});
+  await executeScriptInTab(tabId, code);
 });
 
 Routes["/windows"] = {
   async readdir() {
-    const windows = await browser.windows.getAll();
+    const windows = await chrome.windows.getAll();
     return { entries: [".", "..", ...windows.map(window => String(window.id))] };
   }
 };
 
 Routes["/windows/#WINDOW_ID/tabs"] = {
   async readdir({windowId}) {
-    const tabs = await browser.tabs.query({windowId});
+    const tabs = await chrome.tabs.query({windowId});
     return { entries: [".", "..", ...tabs.map(tab => sanitize(String(tab.title) + "." + String(tab.id))) ] }
   }
 }
@@ -668,7 +683,7 @@ Routes["/windows/#WINDOW_ID/tabs/:TAB_TITLE.#TAB_ID"] = {
     return { buf: "../../../tabs/by-id/" + tabId };
   },
   async unlink({tabId}) {
-    await browser.tabs.remove(tabId);
+    await chrome.tabs.remove(tabId);
     return {};
   }
 }
@@ -676,18 +691,18 @@ Routes["/windows/#WINDOW_ID/tabs/:TAB_TITLE.#TAB_ID"] = {
 Routes["/windows/last-focused"] = {
   description: `A symbolic link to /windows/[id for the last focused window].`,
   async readlink() {
-    const windowId = (await browser.windows.getLastFocused()).id;
+    const windowId = (await chrome.windows.getLastFocused()).id;
     return { buf: windowId };
   }
 };
 
 (function() {
   const withWindow = (readHandler, writeHandler) => makeRouteWithContents(async ({windowId}) => {
-    const window = await browser.windows.get(windowId);
+    const window = await chrome.windows.get(windowId);
     return readHandler(window);
 
   }, writeHandler ? async ({windowId}, buf) => {
-    await browser.windows.update(windowId, writeHandler(buf));
+    await chrome.windows.update(windowId, writeHandler(buf));
   } : undefined);
 
   Routes["/windows/#WINDOW_ID/focused"] =
@@ -698,7 +713,7 @@ Routes["/windows/#WINDOW_ID/visible-tab.png"] = { ...makeRouteWithContents(async
   // screen capture is a window thing and not a tab thing because you
   // can only capture the visible tab for each window anyway; you
   // can't take a screenshot of just any arbitrary tab
-  const dataUrl = await browser.tabs.captureVisibleTab(windowId, {format: 'png'});
+  const dataUrl = await chrome.tabs.captureVisibleTab(windowId, {format: 'png'});
   return Uint8Array.from(atob(dataUrl.substr(("data:image/png;base64,").length)),
                          c => c.charCodeAt(0));
 
@@ -713,36 +728,36 @@ Routes["/windows/#WINDOW_ID/visible-tab.png"] = { ...makeRouteWithContents(async
 
 Routes["/extensions"] = {  
   async readdir() {
-    const infos = await browser.management.getAll();
+    const infos = await chrome.management.getAll();
     return { entries: [".", "..", ...infos.map(info => `${sanitize(info.name)}.${info.id}`)] };
   }
 };
 Routes["/extensions/:EXTENSION_TITLE.:EXTENSION_ID/enabled"] = { ...makeRouteWithContents(async ({extensionId}) => {
-  const info = await browser.management.get(extensionId);
+  const info = await chrome.management.get(extensionId);
   return String(info.enabled) + '\n';
 
 }, async ({extensionId}, buf) => {
-  await browser.management.setEnabled(extensionId, buf.trim() === "true");
+  await chrome.management.setEnabled(extensionId, buf.trim() === "true");
 
   // suppress truncate so it doesn't accidentally flip the state when you do, e.g., `echo true >`
 }), truncate() { return {}; } };
 
 Routes["/runtime/reload"] = {
   async write({buf}) {
-    await browser.runtime.reload();
+    await chrome.runtime.reload();
     return {size: stringToUtf8Array(buf).length};
   },
   truncate() { return {}; }
 };
 
-window.fetch(chrome.runtime.getURL('background.js'))
-  .then(async r => { window.__backgroundJS = await r.text(); });
+fetch(chrome.runtime.getURL('background.js'))
+  .then(async r => { globalThis.__backgroundJS = await r.text(); });
 
 Routes["/runtime/routes.html"] = makeRouteWithContents(async () => {
-  if (!window.__backgroundJS) throw new UnixError(unix.EIO);
+  if (!globalThis.__backgroundJS) throw new UnixError(unix.EIO);
 
   // WIP
-  const jsLines = (window.__backgroundJS).split('\n');
+  const jsLines = (globalThis.__backgroundJS).split('\n');
   function findRouteLineRange(path) {
     for (let i = 0; i < jsLines.length; i++) {
       if (jsLines[i].includes(`Routes["${path}"] = `)) {
@@ -1009,6 +1024,9 @@ function tryConnect() {
   port.onMessage.addListener(onMessage);
   port.onDisconnect.addListener(p => {
     console.log('disconnect', p);
+    // mv3: service worker may have slept, or native host disconnected
+    // attempt reconnect after a delay
+    setTimeout(tryConnect, 1000);
   });
 }
 

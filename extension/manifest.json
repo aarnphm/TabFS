@@ -1,23 +1,23 @@
 {
-  "manifest_version": 2,
-
+  "manifest_version": 3,
   "name": "TabFS",
   "description": "Mount your browser tabs as a filesystem",
   "version": "1.0",
-
   "permissions": [
-    "tabs", "tabCapture", "debugger", "nativeMessaging", "management",
+    "tabs",
+    "tabCapture",
+    "debugger",
+    "nativeMessaging",
+    "management",
     "unlimitedStorage",
+    "scripting"
+  ],
+  "host_permissions": [
     "<all_urls>"
   ],
-
-  "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
-
   "background": {
-    "scripts": ["vendor/browser-polyfill.js", "background.js"],
-    "persistent": true
+    "service_worker": "background.js"
   },
-
   "browser_specific_settings": {
     "gecko": {
       "id": "tabfs@rsnous.com"
