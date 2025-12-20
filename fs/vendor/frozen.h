@@ -60,8 +60,7 @@ struct json_token {
   enum json_token_type type; /* Type of the token, possible values are above */
 };
 
-#define JSON_INVALID_TOKEN \
-  { 0, 0, JSON_TYPE_INVALID }
+#define JSON_INVALID_TOKEN {0, 0, JSON_TYPE_INVALID}
 
 /* Error codes */
 #define JSON_STRING_INVALID -1
@@ -125,17 +124,17 @@ struct json_out {
 extern int json_printer_buf(struct json_out *, const char *, size_t);
 extern int json_printer_file(struct json_out *, const char *, size_t);
 
-#define JSON_OUT_BUF(buf, len) \
-  {                            \
-    json_printer_buf, {        \
+#define JSON_OUT_BUF(buf, len)                                                 \
+  {                                                                            \
+    json_printer_buf, {                                                        \
       { buf, len, 0 }          \
-    }                          \
+    }                                                                          \
   }
-#define JSON_OUT_FILE(fp)   \
-  {                         \
-    json_printer_file, {    \
+#define JSON_OUT_FILE(fp)                                                      \
+  {                                                                            \
+    json_printer_file, {                                                       \
       { (char *) fp, 0, 0 } \
-    }                       \
+    }                                                                          \
   }
 
 typedef int (*json_printf_callback_t)(struct json_out *, va_list *ap);

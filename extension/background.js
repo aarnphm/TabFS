@@ -12,14 +12,14 @@ const unix = {
   ETIMEDOUT: 110, // FIXME: not on macOS (?)
 
   // Unix file types
-  S_IFMT: 0170000, // type of file mask
-  S_IFIFO: 010000, // named pipe (fifo)
-  S_IFCHR: 020000, // character special
-  S_IFDIR: 040000, // directory
-  S_IFBLK: 060000, // block special
-  S_IFREG: 0100000, // regular
-  S_IFLNK: 0120000, // symbolic link
-  S_IFSOCK: 0140000, // socket
+  S_IFMT: 0o170000, // type of file mask
+  S_IFIFO: 0o10000, // named pipe (fifo)
+  S_IFCHR: 0o20000, // character special
+  S_IFDIR: 0o40000, // directory
+  S_IFBLK: 0o60000, // block special
+  S_IFREG: 0o100000, // regular
+  S_IFLNK: 0o120000, // symbolic link
+  S_IFSOCK: 0o140000, // socket
 }
 class UnixError extends Error {
   constructor(error) { super(); this.name = "UnixError"; this.error = error; }
@@ -88,7 +88,7 @@ const utf8ArrayToBase64 = async (data) => {
 
     /*
     The result looks like
-    "data:application/octet-stream;base64,<your base64 data>", 
+    "data:application/octet-stream;base64,<your base64 data>",
     so we split off the beginning:
     */
     return base64url.split(",", 2)[1]
@@ -146,7 +146,7 @@ const makeRouteWithContents = (function() {
       const data = await getData(req);
       if (typeof data === 'undefined') { throw new UnixError(unix.ENOENT); }
       return {
-        st_mode: unix.S_IFREG | 0444 | (setData ? 0222 : 0),
+        st_mode: unix.S_IFREG | 0o444 | (setData ? 0o222 : 0),
         st_nlink: 1,
         // you'll want to override this if getData() is slow, because
         // getattr() gets called a lot more cavalierly than open().
@@ -199,7 +199,7 @@ const makeRouteWithContents = (function() {
 
 // Helper function: returns a route handler for `path` based on all
 // the children of `path` that already exist in Routes.
-// 
+//
 // e.g., if `Routes['/tabs/create']` and `Routes['/tabs/by-id']` and
 // `Routes['/tabs/last-focused']` are all already defined, then
 // `makeDefaultRouteForDirectory('/tabs')` will return a route that
@@ -235,7 +235,7 @@ Routes["/tabs/by-title"] = {
   usage: 'ls $0',
   getattr() {
     return {
-      st_mode: unix.S_IFDIR | 0777, // writable so you can delete tabs
+      st_mode: unix.S_IFDIR | 0o777, // writable so you can delete tabs
       st_nlink: 3,
       st_size: 0,
     };
@@ -265,7 +265,7 @@ Routes["/tabs/by-window"] = {
   usage: 'ls $0',
   getattr() {
     return {
-      st_mode: unix.S_IFDIR | 0777, // writable so you can delete tabs
+      st_mode: unix.S_IFDIR | 0o777, // writable so you can delete tabs
       st_nlink: 3,
       st_size: 0,
     };
@@ -381,7 +381,7 @@ function createWritableDirectory() {
   // writable directory that users can put arbitrary stuff into. It's
   // not itself a route, but it has .routeForRoot and
   // .routeForFilename properties that are routes.
-  
+
   const dir = {};
   return {
     directory: dir,
@@ -395,7 +395,7 @@ function createWritableDirectory() {
       },
       getattr() {
         return {
-          st_mode: unix.S_IFDIR | 0777, // writable so you can create/rm evals
+          st_mode: unix.S_IFDIR | 0o777, // writable so you can create/rm evals
           st_nlink: 3,
           st_size: 0,
         };
@@ -455,7 +455,7 @@ Read that file to evaluate and return the current value of that JS expression.`,
     },
     getattr() {
       return {
-        st_mode: unix.S_IFDIR | 0777, // writable so you can create/rm watches
+        st_mode: unix.S_IFDIR | 0o777, // writable so you can create/rm watches
         st_nlink: 3,
         st_size: 0,
       };
@@ -719,14 +719,14 @@ Routes["/windows/#WINDOW_ID/visible-tab.png"] = { ...makeRouteWithContents(async
 
 }), async getattr() {
   return {
-    st_mode: unix.S_IFREG | 0444,
+    st_mode: unix.S_IFREG | 0o444,
     st_nlink: 1,
     st_size: 10000000 // hard-code to 10MB for now
   };
 } };
 
 
-Routes["/extensions"] = {  
+Routes["/extensions"] = {
   async readdir() {
     const infos = await chrome.management.getAll();
     return { entries: [".", "..", ...infos.map(info => `${sanitize(info.name)}.${info.id}`)] };
@@ -884,9 +884,9 @@ for (let key in Routes) {
   // if readdir -> directory -> add getattr, opendir, releasedir
   if (Routes[key].readdir) {
     Routes[key] = {
-      getattr() { 
+      getattr() {
         return {
-          st_mode: unix.S_IFDIR | 0755,
+          st_mode: unix.S_IFDIR | 0o755,
           st_nlink: 3,
           st_size: 0,
         };
@@ -901,7 +901,7 @@ for (let key in Routes) {
       async getattr(req) {
         const st_size = (await this.readlink(req)).buf.length + 1;
         return {
-          st_mode: unix.S_IFLNK | 0444,
+          st_mode: unix.S_IFLNK | 0o444,
           st_nlink: 1,
           // You _must_ return correct linkee path length from getattr!
           st_size
@@ -909,12 +909,12 @@ for (let key in Routes) {
       },
       ...Routes[key]
     };
-    
+
   } else if (Routes[key].read || Routes[key].write) {
     Routes[key] = {
       async getattr() {
         return {
-          st_mode: unix.S_IFREG | ((Routes[key].read && 0444) | (Routes[key].write && 0222)),
+          st_mode: unix.S_IFREG | ((Routes[key].read && 0o444) | (Routes[key].write && 0o222)),
           st_nlink: 1,
           st_size: 100 // FIXME
         };
@@ -933,7 +933,7 @@ const sortedRoutes = Object.values(Routes).sort((a, b) =>
 function tryMatchRoute(path) {
   if (path.match(/\/\._[^\/]+$/)) {
     // Apple Double ._whatever file for xattrs
-    throw new UnixError(unix.ENOTSUP); 
+    throw new UnixError(unix.ENOTSUP);
   }
 
   for (let route of sortedRoutes) {
@@ -1019,7 +1019,7 @@ function tryConnect() {
     });
     return;
   }
-  
+
   port = chrome.runtime.connectNative('com.rsnous.tabfs');
   port.onMessage.addListener(onMessage);
   port.onDisconnect.addListener(p => {
@@ -1034,7 +1034,7 @@ function tryConnect() {
 if (typeof process === 'object') {
   // we're running in node (as part of a test)
   // return everything they might want to test
-  module.exports = {Routes, tryMatchRoute}; 
+  module.exports = {Routes, tryMatchRoute};
 
 } else {
   tryConnect();

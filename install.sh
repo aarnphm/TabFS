@@ -11,10 +11,12 @@ if [[ "$#" -lt 1 || (
               ( "$1" == "vivaldi" && "$#" -eq 2 && ${#2} -eq 32 ) ||
               ( "$1" == "chromebeta" && "$#" -eq 2 && ${#2} -eq 32 ) ||
               ( "$1" == "chromium" && "$#" -eq 2 && ${#2} -eq 32 ) ||
+              ( "$1" == "helium" && "$#" -eq 2 && ${#2} -eq 32 ) ||
               ( "$1" == "edgedev" && "$#" -eq 2 && ${#2} -eq 32 ) ||
               ( "$1" == "opera" && "$#" -eq 2 && ${#2} -eq 32 ) ) ) ]]; then
     echo "Usage: $0 <chrome EXTENSION_ID | firefox |
                      chromebeta EXTENSION_ID | chromium EXTENSION_ID |
+                     helium EXTENSION_ID |
                      vivaldi EXTENSION_ID | edgedev EXTENSION_ID |
                      brave EXTENSION_ID | opera EXTENSION_ID | arc EXTENSION_ID>"
     exit 2
@@ -52,6 +54,8 @@ case "$OS $BROWSER" in
         MANIFEST_LOCATION="$HOME/Library/Application Support/Google/Chrome Beta/NativeMessagingHosts";;
     "Darwin chromium")
         MANIFEST_LOCATION="$HOME/Library/Application Support/Chromium/NativeMessagingHosts";;
+    "Darwin helium")
+        MANIFEST_LOCATION="$HOME/Library/Application Support/net.imput.helium/NativeMessagingHosts";;
     "Darwin vivaldi")
         MANIFEST_LOCATION="$HOME/Library/Application Support/Vivaldi/NativeMessagingHosts";;
     "Darwin arc")
@@ -64,7 +68,7 @@ APP_NAME="com.rsnous.tabfs"
 EXE_PATH=$(pwd)/fs/tabfs
 
 case "$BROWSER" in
-    chrome | chromium | chromebeta | brave | vivaldi | edgedev | opera | arc)
+    chrome | chromium | chromebeta | helium | brave | vivaldi | edgedev | opera | arc)
         EXTENSION_ID=$2
         MANIFEST=$(cat <<EOF
 {

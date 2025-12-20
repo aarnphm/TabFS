@@ -91,30 +91,31 @@ struct fstate {
   size_t path_len;
 };
 
-#define SET_STATE(fr, ptr, str, len)              \
-  struct fstate fstate = {(ptr), (fr)->path_len}; \
+#define SET_STATE(fr, ptr, str, len)                                           \
+  struct fstate fstate = {(ptr), (fr)->path_len};                              \
   json_append_to_path((fr), (str), (len));
 
-#define CALL_BACK(fr, tok, value, len)                                        \
-  do {                                                                        \
-    if ((fr)->callback &&                                                     \
-        ((fr)->path_len == 0 || (fr)->path[(fr)->path_len - 1] != '.')) {     \
-      struct json_token t = {(value), (int) (len), (tok)};                    \
-                                                                              \
-      /* Call the callback with the given value and current name */           \
-      (fr)->callback((fr)->callback_data, (fr)->cur_name, (fr)->cur_name_len, \
-                     (fr)->path, &t);                                         \
-                                                                              \
-      /* Reset the name */                                                    \
-      (fr)->cur_name = NULL;                                                  \
-      (fr)->cur_name_len = 0;                                                 \
-    }                                                                         \
+#define CALL_BACK(fr, tok, value, len)                                         \
+  do {                                                                         \
+    if ((fr)->callback &&                                                      \
+        ((fr)->path_len == 0 || (fr)->path[(fr)->path_len - 1] != '.')) {      \
+      struct json_token t = {(value), (int)(len), (tok)};                      \
+                                                                               \
+      /* Call the callback with the given value and current name */            \
+      (fr)->callback((fr)->callback_data, (fr)->cur_name, (fr)->cur_name_len,  \
+                     (fr)->path, &t);                                          \
+                                                                               \
+      /* Reset the name */                                                     \
+      (fr)->cur_name = NULL;                                                   \
+      (fr)->cur_name_len = 0;                                                  \
+    }                                                                          \
   } while (0)
 
 static int json_append_to_path(struct frozen *f, const char *str, int size) {
   int n = f->path_len;
   int left = sizeof(f->path) - n - 1;
-  if (size > left) size = left;
+  if (size > left)
+    size = left;
   memcpy(f->path + n, str, size);
   f->path[n + size] = '\0';
   f->path_len += size;
@@ -129,34 +130,35 @@ static void json_truncate_path(struct frozen *f, size_t len) {
 static int json_parse_object(struct frozen *f);
 static int json_parse_value(struct frozen *f);
 
-#define EXPECT(cond, err_code)      \
-  do {                              \
-    if (!(cond)) return (err_code); \
+#define EXPECT(cond, err_code)                                                 \
+  do {                                                                         \
+    if (!(cond))                                                               \
+      return (err_code);                                                       \
   } while (0)
 
-#define TRY(expr)          \
-  do {                     \
-    int _n = expr;         \
-    if (_n < 0) return _n; \
+#define TRY(expr)                                                              \
+  do {                                                                         \
+    int _n = expr;                                                             \
+    if (_n < 0)                                                                \
+      return _n;                                                               \
   } while (0)
 
 #define END_OF_STRING (-1)
 
-static int json_left(const struct frozen *f) {
-  return f->end - f->cur;
-}
+static int json_left(const struct frozen *f) { return f->end - f->cur; }
 
 static int json_isspace(int ch) {
   return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n';
 }
 
 static void json_skip_whitespaces(struct frozen *f) {
-  while (f->cur < f->end && json_isspace(*f->cur)) f->cur++;
+  while (f->cur < f->end && json_isspace(*f->cur))
+    f->cur++;
 }
 
 static int json_cur(struct frozen *f) {
   json_skip_whitespaces(f);
-  return f->cur >= f->end ? END_OF_STRING : *(unsigned char *) f->cur;
+  return f->cur >= f->end ? END_OF_STRING : *(unsigned char *)f->cur;
 }
 
 static int json_test_and_skip(struct frozen *f, int expected) {
@@ -172,9 +174,7 @@ static int json_isalpha(int ch) {
   return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
 }
 
-static int json_isdigit(int ch) {
-  return ch >= '0' && ch <= '9';
-}
+static int json_isdigit(int ch) { return ch >= '0' && ch <= '9'; }
 
 static int json_isxdigit(int ch) {
   return json_isdigit(ch) || (ch >= 'a' && ch <= 'f') ||
@@ -183,23 +183,23 @@ static int json_isxdigit(int ch) {
 
 static int json_get_escape_len(const char *s, int len) {
   switch (*s) {
-    case 'u':
-      return len < 6 ? JSON_STRING_INCOMPLETE
-                     : json_isxdigit(s[1]) && json_isxdigit(s[2]) &&
-                               json_isxdigit(s[3]) && json_isxdigit(s[4])
-                           ? 5
-                           : JSON_STRING_INVALID;
-    case '"':
-    case '\\':
-    case '/':
-    case 'b':
-    case 'f':
-    case 'n':
-    case 'r':
-    case 't':
-      return len < 2 ? JSON_STRING_INCOMPLETE : 1;
-    default:
-      return JSON_STRING_INVALID;
+  case 'u':
+    return len < 6 ? JSON_STRING_INCOMPLETE
+           : json_isxdigit(s[1]) && json_isxdigit(s[2]) &&
+                   json_isxdigit(s[3]) && json_isxdigit(s[4])
+               ? 5
+               : JSON_STRING_INVALID;
+  case '"':
+  case '\\':
+  case '/':
+  case 'b':
+  case 'f':
+  case 'n':
+  case 'r':
+  case 't':
+    return len < 2 ? JSON_STRING_INCOMPLETE : 1;
+  default:
+    return JSON_STRING_INVALID;
   }
 }
 
@@ -219,14 +219,15 @@ static int json_parse_identifier(struct frozen *f) {
 }
 
 static int json_get_utf8_char_len(unsigned char ch) {
-  if ((ch & 0x80) == 0) return 1;
+  if ((ch & 0x80) == 0)
+    return 1;
   switch (ch & 0xf0) {
-    case 0xf0:
-      return 4;
-    case 0xe0:
-      return 3;
-    default:
-      return 2;
+  case 0xf0:
+    return 4;
+  case 0xe0:
+    return 3;
+  default:
+    return 2;
   }
 }
 
@@ -237,8 +238,8 @@ static int json_parse_string(struct frozen *f) {
   {
     SET_STATE(f, f->cur, "", 0);
     for (; f->cur < f->end; f->cur += len) {
-      ch = *(unsigned char *) f->cur;
-      len = json_get_utf8_char_len((unsigned char) ch);
+      ch = *(unsigned char *)f->cur;
+      len = json_get_utf8_char_len((unsigned char)ch);
       EXPECT(ch >= 32 && len > 0, JSON_STRING_INVALID); /* No control chars */
       EXPECT(len <= json_left(f), JSON_STRING_INCOMPLETE);
       if (ch == '\\') {
@@ -259,29 +260,35 @@ static int json_parse_string(struct frozen *f) {
 static int json_parse_number(struct frozen *f) {
   int ch = json_cur(f);
   SET_STATE(f, f->cur, "", 0);
-  if (ch == '-') f->cur++;
+  if (ch == '-')
+    f->cur++;
   EXPECT(f->cur < f->end, JSON_STRING_INCOMPLETE);
   if (f->cur + 1 < f->end && f->cur[0] == '0' && f->cur[1] == 'x') {
     f->cur += 2;
     EXPECT(f->cur < f->end, JSON_STRING_INCOMPLETE);
     EXPECT(json_isxdigit(f->cur[0]), JSON_STRING_INVALID);
-    while (f->cur < f->end && json_isxdigit(f->cur[0])) f->cur++;
+    while (f->cur < f->end && json_isxdigit(f->cur[0]))
+      f->cur++;
   } else {
     EXPECT(json_isdigit(f->cur[0]), JSON_STRING_INVALID);
-    while (f->cur < f->end && json_isdigit(f->cur[0])) f->cur++;
+    while (f->cur < f->end && json_isdigit(f->cur[0]))
+      f->cur++;
     if (f->cur < f->end && f->cur[0] == '.') {
       f->cur++;
       EXPECT(f->cur < f->end, JSON_STRING_INCOMPLETE);
       EXPECT(json_isdigit(f->cur[0]), JSON_STRING_INVALID);
-      while (f->cur < f->end && json_isdigit(f->cur[0])) f->cur++;
+      while (f->cur < f->end && json_isdigit(f->cur[0]))
+        f->cur++;
     }
     if (f->cur < f->end && (f->cur[0] == 'e' || f->cur[0] == 'E')) {
       f->cur++;
       EXPECT(f->cur < f->end, JSON_STRING_INCOMPLETE);
-      if ((f->cur[0] == '+' || f->cur[0] == '-')) f->cur++;
+      if ((f->cur[0] == '+' || f->cur[0] == '-'))
+        f->cur++;
       EXPECT(f->cur < f->end, JSON_STRING_INCOMPLETE);
       EXPECT(json_isdigit(f->cur[0]), JSON_STRING_INVALID);
-      while (f->cur < f->end && json_isdigit(f->cur[0])) f->cur++;
+      while (f->cur < f->end && json_isdigit(f->cur[0]))
+        f->cur++;
     }
   }
   json_truncate_path(f, fstate.path_len);
@@ -308,7 +315,8 @@ static int json_parse_array(struct frozen *f) {
         f->cur_name_len = strlen(buf) - 2 /*braces*/;
         TRY(json_parse_value(f));
         json_truncate_path(f, current_path_len);
-        if (json_cur(f) == ',') f->cur++;
+        if (json_cur(f) == ',')
+          f->cur++;
       }
       TRY(json_test_and_skip(f, ']'));
       json_truncate_path(f, fstate.path_len);
@@ -324,8 +332,10 @@ static int json_expect(struct frozen *f, const char *s, int len,
   int i, n = json_left(f);
   SET_STATE(f, f->cur, "", 0);
   for (i = 0; i < len; i++) {
-    if (i >= n) return JSON_STRING_INCOMPLETE;
-    if (f->cur[i] != s[i]) return JSON_STRING_INVALID;
+    if (i >= n)
+      return JSON_STRING_INCOMPLETE;
+    if (f->cur[i] != s[i])
+      return JSON_STRING_INVALID;
   }
   f->cur += len;
   json_truncate_path(f, fstate.path_len);
@@ -340,41 +350,41 @@ static int json_parse_value(struct frozen *f) {
   int ch = json_cur(f);
 
   switch (ch) {
-    case '"':
-      TRY(json_parse_string(f));
-      break;
-    case '{':
-      TRY(json_parse_object(f));
-      break;
+  case '"':
+    TRY(json_parse_string(f));
+    break;
+  case '{':
+    TRY(json_parse_object(f));
+    break;
 #if JSON_ENABLE_ARRAY
-    case '[':
-      TRY(json_parse_array(f));
-      break;
+  case '[':
+    TRY(json_parse_array(f));
+    break;
 #endif
-    case 'n':
-      TRY(json_expect(f, "null", 4, JSON_TYPE_NULL));
-      break;
-    case 't':
-      TRY(json_expect(f, "true", 4, JSON_TYPE_TRUE));
-      break;
-    case 'f':
-      TRY(json_expect(f, "false", 5, JSON_TYPE_FALSE));
-      break;
-    case '-':
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
-      TRY(json_parse_number(f));
-      break;
-    default:
-      return ch == END_OF_STRING ? JSON_STRING_INCOMPLETE : JSON_STRING_INVALID;
+  case 'n':
+    TRY(json_expect(f, "null", 4, JSON_TYPE_NULL));
+    break;
+  case 't':
+    TRY(json_expect(f, "true", 4, JSON_TYPE_TRUE));
+    break;
+  case 'f':
+    TRY(json_expect(f, "false", 5, JSON_TYPE_FALSE));
+    break;
+  case '-':
+  case '0':
+  case '1':
+  case '2':
+  case '3':
+  case '4':
+  case '5':
+  case '6':
+  case '7':
+  case '8':
+  case '9':
+    TRY(json_parse_number(f));
+    break;
+  default:
+    return ch == END_OF_STRING ? JSON_STRING_INCOMPLETE : JSON_STRING_INVALID;
   }
 
   return 0;
@@ -419,7 +429,8 @@ static int json_parse_object(struct frozen *f) {
     SET_STATE(f, f->cur - 1, ".", 1);
     while (json_cur(f) != '}') {
       TRY(json_parse_pair(f));
-      if (json_cur(f) == ',') f->cur++;
+      if (json_cur(f) == ',')
+        f->cur++;
     }
     TRY(json_test_and_skip(f, '}'));
     json_truncate_path(f, fstate.path_len);
@@ -429,8 +440,10 @@ static int json_parse_object(struct frozen *f) {
 }
 
 static int json_doit(struct frozen *f) {
-  if (f->cur == 0 || f->end < f->cur) return JSON_STRING_INVALID;
-  if (f->end == f->cur) return JSON_STRING_INCOMPLETE;
+  if (f->cur == 0 || f->end < f->cur)
+    return JSON_STRING_INVALID;
+  if (f->end == f->cur)
+    return JSON_STRING_INCOMPLETE;
   return json_parse_value(f);
 }
 
@@ -441,7 +454,7 @@ int json_escape(struct json_out *out, const char *p, size_t len) {
   const char *specials = "btnvfr";
 
   for (i = 0; i < len; i++) {
-    unsigned char ch = ((unsigned char *) p)[i];
+    unsigned char ch = ((unsigned char *)p)[i];
     if (ch == '"' || ch == '\\') {
       n += out->printer(out, "\\", 1);
       n += out->printer(out, p + i, 1);
@@ -471,7 +484,8 @@ int json_printer_buf(struct json_out *out, const char *buf, size_t len) {
   out->u.buf.len += n;
   if (out->u.buf.size > 0) {
     size_t idx = out->u.buf.len;
-    if (idx >= out->u.buf.size) idx = out->u.buf.size - 1;
+    if (idx >= out->u.buf.size)
+      idx = out->u.buf.size - 1;
     out->u.buf.buf[idx] = '\0';
   }
   return len;
@@ -520,8 +534,10 @@ static int b64enc(struct json_out *out, const unsigned char *p, int n) {
     buf[1] = b64idx((a & 3) << 4 | (b >> 4));
     buf[2] = b64idx((b & 15) << 2 | (c >> 6));
     buf[3] = b64idx(c & 63);
-    if (i + 1 >= n) buf[2] = '=';
-    if (i + 2 >= n) buf[3] = '=';
+    if (i + 1 >= n)
+      buf[2] = '=';
+    if (i + 2 >= n)
+      buf[3] = '=';
     len += out->printer(out, buf, sizeof(buf));
   }
   return len;
@@ -548,8 +564,8 @@ static int b64dec(const char *src, int n, char *dst) {
 
 static unsigned char hexdec(const char *s) {
 #define HEXTOI(x) (x >= '0' && x <= '9' ? x - '0' : x - 'W')
-  int a = tolower(*(const unsigned char *) s);
-  int b = tolower(*(const unsigned char *) (s + 1));
+  int a = tolower(*(const unsigned char *)s);
+  int b = tolower(*(const unsigned char *)(s + 1));
   return (HEXTOI(a) << 4) | HEXTOI(b);
 }
 
@@ -576,7 +592,7 @@ int json_vprintf(struct json_out *out, const char *fmt, va_list xap) {
         skip += 2;
       } else if (fmt[1] == 'z' && fmt[2] == 'u') {
         size_t val = va_arg(ap, size_t);
-        snprintf(buf, sizeof(buf), "%lu", (unsigned long) val);
+        snprintf(buf, sizeof(buf), "%lu", (unsigned long)val);
         len += out->printer(out, buf, strlen(buf));
         skip += 1;
       } else if (fmt[1] == 'M') {
@@ -612,7 +628,7 @@ int json_vprintf(struct json_out *out, const char *fmt, va_list xap) {
         const char *p;
 
         if (fmt[1] == '.') {
-          l = (size_t) va_arg(ap, int);
+          l = (size_t)va_arg(ap, int);
           skip += 2;
         }
         p = va_arg(ap, char *);
@@ -646,7 +662,7 @@ int json_vprintf(struct json_out *out, const char *fmt, va_list xap) {
         char fmt2[20];
         va_list ap_copy;
         strncpy(fmt2, fmt,
-                n + 1 > (int) sizeof(fmt2) ? sizeof(fmt2) : (size_t) n + 1);
+                n + 1 > (int)sizeof(fmt2) ? sizeof(fmt2) : (size_t)n + 1);
         fmt2[n + 1] = '\0';
 
         va_copy(ap_copy, ap);
@@ -662,17 +678,18 @@ int json_vprintf(struct json_out *out, const char *fmt, va_list xap) {
           while (need_len < 0) {
             free(pbuf);
             size *= 2;
-            if ((pbuf = (char *) malloc(size)) == NULL) break;
+            if ((pbuf = (char *)malloc(size)) == NULL)
+              break;
             va_copy(ap_copy, ap);
             need_len = vsnprintf(pbuf, size, fmt2, ap_copy);
             va_end(ap_copy);
           }
-        } else if (need_len >= (int) sizeof(buf)) {
+        } else if (need_len >= (int)sizeof(buf)) {
           /*
            * resulting string doesn't fit into a stack-allocated buffer `buf`,
            * so we need to allocate a new buffer from heap and use it
            */
-          if ((pbuf = (char *) malloc(need_len + 1)) != NULL) {
+          if ((pbuf = (char *)malloc(need_len + 1)) != NULL) {
             va_copy(ap_copy, ap);
             vsnprintf(pbuf, need_len + 1, fmt2, ap_copy);
             va_end(ap_copy);
@@ -689,30 +706,30 @@ int json_vprintf(struct json_out *out, const char *fmt, va_list xap) {
          * inherit the advancement made by vprintf.
          * 32-bit (linux or windows) passes va_list by value.
          */
-        if ((n + 1 == (int) strlen("%" PRId64) &&
+        if ((n + 1 == (int)strlen("%" PRId64) &&
              strcmp(fmt2, "%" PRId64) == 0) ||
-            (n + 1 == (int) strlen("%" PRIu64) &&
+            (n + 1 == (int)strlen("%" PRIu64) &&
              strcmp(fmt2, "%" PRIu64) == 0)) {
-          (void) va_arg(ap, int64_t);
+          (void)va_arg(ap, int64_t);
         } else if (strcmp(fmt2, "%.*s") == 0) {
-          (void) va_arg(ap, int);
-          (void) va_arg(ap, char *);
+          (void)va_arg(ap, int);
+          (void)va_arg(ap, char *);
         } else {
           switch (fmt2[n]) {
-            case 'u':
-            case 'd':
-              (void) va_arg(ap, int);
-              break;
-            case 'g':
-            case 'f':
-              (void) va_arg(ap, double);
-              break;
-            case 'p':
-              (void) va_arg(ap, void *);
-              break;
-            default:
-              /* many types are promoted to int */
-              (void) va_arg(ap, int);
+          case 'u':
+          case 'd':
+            (void)va_arg(ap, int);
+            break;
+          case 'g':
+          case 'f':
+            (void)va_arg(ap, double);
+            break;
+          case 'p':
+            (void)va_arg(ap, void *);
+            break;
+          default:
+            /* many types are promoted to int */
+            (void)va_arg(ap, int);
           }
         }
 
@@ -768,7 +785,8 @@ int json_printf_array(struct json_out *out, va_list *ap) {
     } val;
     memcpy(&val, arr + i * elem_size,
            elem_size > sizeof(val) ? sizeof(val) : elem_size);
-    if (i > 0) len += json_printf(out, ", ");
+    if (i > 0)
+      len += json_printf(out, ", ");
     if (strpbrk(fmt, "efg") != NULL) {
       len += json_printf(out, fmt, val.d);
     } else {
@@ -828,10 +846,10 @@ struct scan_array_info {
 static void json_scanf_array_elem_cb(void *callback_data, const char *name,
                                      size_t name_len, const char *path,
                                      const struct json_token *token) {
-  struct scan_array_info *info = (struct scan_array_info *) callback_data;
+  struct scan_array_info *info = (struct scan_array_info *)callback_data;
 
-  (void) name;
-  (void) name_len;
+  (void)name;
+  (void)name_len;
 
   if (strcmp(path, info->path) == 0) {
     *info->token = *token;
@@ -863,30 +881,35 @@ struct json_scanf_info {
 
 int json_unescape(const char *src, int slen, char *dst, int dlen) WEAK;
 int json_unescape(const char *src, int slen, char *dst, int dlen) {
-  char *send = (char *) src + slen, *dend = dst + dlen, *orig_dst = dst, *p;
+  char *send = (char *)src + slen, *dend = dst + dlen, *orig_dst = dst, *p;
   const char *esc1 = "\"\\/bfnrt", *esc2 = "\"\\/\b\f\n\r\t";
 
   while (src < send) {
     if (*src == '\\') {
-      if (++src >= send) return JSON_STRING_INCOMPLETE;
+      if (++src >= send)
+        return JSON_STRING_INCOMPLETE;
       if (*src == 'u') {
-        if (send - src < 5) return JSON_STRING_INCOMPLETE;
+        if (send - src < 5)
+          return JSON_STRING_INCOMPLETE;
         /* Here we go: this is a \u.... escape. Process simple one-byte chars */
         if (src[1] == '0' && src[2] == '0') {
           /* This is \u00xx character from the ASCII range */
-          if (dst < dend) *dst = hexdec(src + 3);
+          if (dst < dend)
+            *dst = hexdec(src + 3);
           src += 4;
         } else {
           /* Complex \uXXXX escapes drag utf8 lib... Do it at some stage */
           return JSON_STRING_INVALID;
         }
-      } else if ((p = (char *) strchr(esc1, *src)) != NULL) {
-        if (dst < dend) *dst = esc2[p - esc1];
+      } else if ((p = (char *)strchr(esc1, *src)) != NULL) {
+        if (dst < dend)
+          *dst = esc2[p - esc1];
       } else {
         return JSON_STRING_INVALID;
       }
     } else {
-      if (dst < dend) *dst = *src;
+      if (dst < dend)
+        *dst = *src;
     }
     dst++;
     src++;
@@ -898,11 +921,11 @@ int json_unescape(const char *src, int slen, char *dst, int dlen) {
 static void json_scanf_cb(void *callback_data, const char *name,
                           size_t name_len, const char *path,
                           const struct json_token *token) {
-  struct json_scanf_info *info = (struct json_scanf_info *) callback_data;
+  struct json_scanf_info *info = (struct json_scanf_info *)callback_data;
   char buf[32]; /* Must be enough to hold numbers */
 
-  (void) name;
-  (void) name_len;
+  (void)name;
+  (void)name_len;
 
   if (token->ptr == NULL) {
     /*
@@ -918,117 +941,118 @@ static void json_scanf_cb(void *callback_data, const char *name,
   }
 
   switch (info->type) {
-    case 'B':
-      info->num_conversions++;
-      switch (sizeof(bool)) {
-        case sizeof(char):
-          *(char *) info->target = (token->type == JSON_TYPE_TRUE ? 1 : 0);
-          break;
-        case sizeof(int):
-          *(int *) info->target = (token->type == JSON_TYPE_TRUE ? 1 : 0);
-          break;
-        default:
-          /* should never be here */
-          abort();
-      }
+  case 'B':
+    info->num_conversions++;
+    switch (sizeof(bool)) {
+    case sizeof(char):
+      *(char *)info->target = (token->type == JSON_TYPE_TRUE ? 1 : 0);
       break;
-    case 'M': {
-      union {
-        void *p;
-        json_scanner_t f;
-      } u = {info->target};
-      info->num_conversions++;
-      u.f(token->ptr, token->len, info->user_data);
-      break;
-    }
-    case 'Q': {
-      char **dst = (char **) info->target;
-      if (token->type == JSON_TYPE_NULL) {
-        *dst = NULL;
-      } else {
-        int unescaped_len = json_unescape(token->ptr, token->len, NULL, 0);
-        if (unescaped_len >= 0 &&
-            (*dst = (char *) malloc(unescaped_len + 1)) != NULL) {
-          info->num_conversions++;
-          if (json_unescape(token->ptr, token->len, *dst, unescaped_len) ==
-              unescaped_len) {
-            (*dst)[unescaped_len] = '\0';
-          } else {
-            free(*dst);
-            *dst = NULL;
-          }
-        }
-      }
-      break;
-    }
-    case 'H': {
-#if JSON_ENABLE_HEX
-      char **dst = (char **) info->user_data;
-      int i, len = token->len / 2;
-      *(int *) info->target = len;
-      if ((*dst = (char *) malloc(len + 1)) != NULL) {
-        for (i = 0; i < len; i++) {
-          (*dst)[i] = hexdec(token->ptr + 2 * i);
-        }
-        (*dst)[len] = '\0';
-        info->num_conversions++;
-      }
-#endif /* JSON_ENABLE_HEX */
-      break;
-    }
-    case 'V': {
-#if JSON_ENABLE_BASE64
-      char **dst = (char **) info->target;
-      int len = token->len * 4 / 3 + 2;
-      if ((*dst = (char *) malloc(len + 1)) != NULL) {
-        int n = b64dec(token->ptr, token->len, *dst);
-        (*dst)[n] = '\0';
-        *(int *) info->user_data = n;
-        info->num_conversions++;
-      }
-#endif /* JSON_ENABLE_BASE64 */
-      break;
-    }
-    case 'T':
-      info->num_conversions++;
-      *(struct json_token *) info->target = *token;
+    case sizeof(int):
+      *(int *)info->target = (token->type == JSON_TYPE_TRUE ? 1 : 0);
       break;
     default:
-      if (token->len >= (int) sizeof(buf)) break;
-      /* Before converting, copy into tmp buffer in order to 0-terminate it */
-      memcpy(buf, token->ptr, token->len);
-      buf[token->len] = '\0';
-      /* NB: Use of base 0 for %d, %ld, %u and %lu is intentional. */
-      if (info->fmt[1] == 'd' || (info->fmt[1] == 'l' && info->fmt[2] == 'd') ||
-          info->fmt[1] == 'i') {
-        char *endptr = NULL;
-        long r = strtol(buf, &endptr, 0 /* base */);
-        if (*endptr == '\0') {
-          if (info->fmt[1] == 'l') {
-            *((long *) info->target) = r;
-          } else {
-            *((int *) info->target) = (int) r;
-          }
-          info->num_conversions++;
+      /* should never be here */
+      abort();
+    }
+    break;
+  case 'M': {
+    union {
+      void *p;
+      json_scanner_t f;
+    } u = {info->target};
+    info->num_conversions++;
+    u.f(token->ptr, token->len, info->user_data);
+    break;
+  }
+  case 'Q': {
+    char **dst = (char **)info->target;
+    if (token->type == JSON_TYPE_NULL) {
+      *dst = NULL;
+    } else {
+      int unescaped_len = json_unescape(token->ptr, token->len, NULL, 0);
+      if (unescaped_len >= 0 &&
+          (*dst = (char *)malloc(unescaped_len + 1)) != NULL) {
+        info->num_conversions++;
+        if (json_unescape(token->ptr, token->len, *dst, unescaped_len) ==
+            unescaped_len) {
+          (*dst)[unescaped_len] = '\0';
+        } else {
+          free(*dst);
+          *dst = NULL;
         }
-      } else if (info->fmt[1] == 'u' ||
-                 (info->fmt[1] == 'l' && info->fmt[2] == 'u')) {
-        char *endptr = NULL;
-        unsigned long r = strtoul(buf, &endptr, 0 /* base */);
-        if (*endptr == '\0') {
-          if (info->fmt[1] == 'l') {
-            *((unsigned long *) info->target) = r;
-          } else {
-            *((unsigned int *) info->target) = (unsigned int) r;
-          }
-          info->num_conversions++;
-        }
-      } else {
-#if !JSON_MINIMAL
-        info->num_conversions += sscanf(buf, info->fmt, info->target);
-#endif
       }
+    }
+    break;
+  }
+  case 'H': {
+#if JSON_ENABLE_HEX
+    char **dst = (char **)info->user_data;
+    int i, len = token->len / 2;
+    *(int *)info->target = len;
+    if ((*dst = (char *)malloc(len + 1)) != NULL) {
+      for (i = 0; i < len; i++) {
+        (*dst)[i] = hexdec(token->ptr + 2 * i);
+      }
+      (*dst)[len] = '\0';
+      info->num_conversions++;
+    }
+#endif /* JSON_ENABLE_HEX */
+    break;
+  }
+  case 'V': {
+#if JSON_ENABLE_BASE64
+    char **dst = (char **)info->target;
+    int len = token->len * 4 / 3 + 2;
+    if ((*dst = (char *)malloc(len + 1)) != NULL) {
+      int n = b64dec(token->ptr, token->len, *dst);
+      (*dst)[n] = '\0';
+      *(int *)info->user_data = n;
+      info->num_conversions++;
+    }
+#endif /* JSON_ENABLE_BASE64 */
+    break;
+  }
+  case 'T':
+    info->num_conversions++;
+    *(struct json_token *)info->target = *token;
+    break;
+  default:
+    if (token->len >= (int)sizeof(buf))
       break;
+    /* Before converting, copy into tmp buffer in order to 0-terminate it */
+    memcpy(buf, token->ptr, token->len);
+    buf[token->len] = '\0';
+    /* NB: Use of base 0 for %d, %ld, %u and %lu is intentional. */
+    if (info->fmt[1] == 'd' || (info->fmt[1] == 'l' && info->fmt[2] == 'd') ||
+        info->fmt[1] == 'i') {
+      char *endptr = NULL;
+      long r = strtol(buf, &endptr, 0 /* base */);
+      if (*endptr == '\0') {
+        if (info->fmt[1] == 'l') {
+          *((long *)info->target) = r;
+        } else {
+          *((int *)info->target) = (int)r;
+        }
+        info->num_conversions++;
+      }
+    } else if (info->fmt[1] == 'u' ||
+               (info->fmt[1] == 'l' && info->fmt[2] == 'u')) {
+      char *endptr = NULL;
+      unsigned long r = strtoul(buf, &endptr, 0 /* base */);
+      if (*endptr == '\0') {
+        if (info->fmt[1] == 'l') {
+          *((unsigned long *)info->target) = r;
+        } else {
+          *((unsigned int *)info->target) = (unsigned int)r;
+        }
+        info->num_conversions++;
+      }
+    } else {
+#if !JSON_MINIMAL
+      info->num_conversions += sscanf(buf, info->fmt, info->target);
+#endif
+    }
+    break;
   }
 }
 
@@ -1044,39 +1068,41 @@ int json_vscanf(const char *s, int len, const char *fmt, va_list ap) {
       strcat(path, ".");
       i++;
     } else if (fmt[i] == '}') {
-      if ((p = strrchr(path, '.')) != NULL) *p = '\0';
+      if ((p = strrchr(path, '.')) != NULL)
+        *p = '\0';
       i++;
     } else if (fmt[i] == '%') {
       info.target = va_arg(ap, void *);
       info.type = fmt[i + 1];
       switch (fmt[i + 1]) {
-        case 'M':
-        case 'V':
-        case 'H':
-          info.user_data = va_arg(ap, void *);
-        /* FALLTHROUGH */
-        case 'B':
-        case 'Q':
-        case 'T':
-          i += 2;
-          break;
-        default: {
-          const char *delims = ", \t\r\n]}";
-          int conv_len = strcspn(fmt + i + 1, delims) + 1;
-          memcpy(fmtbuf, fmt + i, conv_len);
-          fmtbuf[conv_len] = '\0';
-          i += conv_len;
-          if (fmt[i] != '}')
-            i += strspn(fmt + i, delims);
-          break;
-        }
+      case 'M':
+      case 'V':
+      case 'H':
+        info.user_data = va_arg(ap, void *);
+      /* FALLTHROUGH */
+      case 'B':
+      case 'Q':
+      case 'T':
+        i += 2;
+        break;
+      default: {
+        const char *delims = ", \t\r\n]}";
+        int conv_len = strcspn(fmt + i + 1, delims) + 1;
+        memcpy(fmtbuf, fmt + i, conv_len);
+        fmtbuf[conv_len] = '\0';
+        i += conv_len;
+        if (fmt[i] != '}')
+          i += strspn(fmt + i, delims);
+        break;
+      }
       }
       json_walk(s, len, json_scanf_cb, &info);
     } else if (json_isalpha(fmt[i]) || json_get_utf8_char_len(fmt[i]) > 1) {
       char *pe;
       const char *delims = ": \r\n\t";
       int key_len = strcspn(&fmt[i], delims);
-      if ((p = strrchr(path, '.')) != NULL) p[1] = '\0';
+      if ((p = strrchr(path, '.')) != NULL)
+        p[1] = '\0';
       pe = path + strlen(path);
       memcpy(pe, fmt + i, key_len);
       pe[key_len] = '\0';
@@ -1130,9 +1156,9 @@ char *json_fread(const char *path) {
     fclose(fp);
   } else {
     long size = ftell(fp);
-    if (size > 0 && (data = (char *) malloc(size + 1)) != NULL) {
+    if (size > 0 && (data = (char *)malloc(size + 1)) != NULL) {
       fseek(fp, 0, SEEK_SET); /* Some platforms might not have rewind(), Oo */
-      if (fread(data, 1, size, fp) != (size_t) size) {
+      if (fread(data, 1, size, fp) != (size_t)size) {
         free(data);
         data = NULL;
       } else {
@@ -1155,17 +1181,20 @@ struct json_setf_data {
 
 static int get_matched_prefix_len(const char *s1, const char *s2) {
   int i = 0;
-  while (s1[i] && s2[i] && s1[i] == s2[i]) i++;
+  while (s1[i] && s2[i] && s1[i] == s2[i])
+    i++;
   return i;
 }
 
 static void json_vsetf_cb(void *userdata, const char *name, size_t name_len,
                           const char *path, const struct json_token *t) {
-  struct json_setf_data *data = (struct json_setf_data *) userdata;
+  struct json_setf_data *data = (struct json_setf_data *)userdata;
   int off, len = get_matched_prefix_len(path, data->json_path);
-  if (t->ptr == NULL) return;
+  if (t->ptr == NULL)
+    return;
   off = t->ptr - data->base;
-  if (len > data->matched) data->matched = len;
+  if (len > data->matched)
+    data->matched = len;
 
   /*
    * If there is no exact path match, set the mutation position to tbe end
@@ -1197,8 +1226,8 @@ static void json_vsetf_cb(void *userdata, const char *name, size_t name_len,
              off + 1 > data->prev) {
     data->prev = off + 1;
   }
-  (void) name;
-  (void) name_len;
+  (void)name;
+  (void)name_len;
 }
 
 int json_vsetf(const char *s, int len, struct json_out *out,
@@ -1217,8 +1246,10 @@ int json_vsetf(const char *s, int len, struct json_out *out,
     /* Trim comma after the value that begins at object/array start */
     if (s[data.prev - 1] == '{' || s[data.prev - 1] == '[') {
       int i = data.end;
-      while (i < len && json_isspace(s[i])) i++;
-      if (s[i] == ',') data.end = i + 1; /* Point after comma */
+      while (i < len && json_isspace(s[i]))
+        i++;
+      if (s[i] == ',')
+        data.end = i + 1; /* Point after comma */
     }
     json_printf(out, "%.*s", len - data.end, s + data.end);
   } else {
@@ -1233,7 +1264,8 @@ int json_vsetf(const char *s, int len, struct json_out *out,
       if (s[data.prev - 1] != '{' && s[data.prev - 1] != '[' && depth == 0) {
         json_printf(out, ",");
       }
-      if (off > 0 && json_path[off - 1] != '.') break;
+      if (off > 0 && json_path[off - 1] != '.')
+        break;
       json_printf(out, "%.*Q:", n, json_path + off);
       off += n;
       if (json_path[off] != '\0') {
@@ -1277,7 +1309,8 @@ struct prettify_data {
 };
 
 static void indent(struct json_out *out, int level) {
-  while (level-- > 0) out->printer(out, "  ", 2);
+  while (level-- > 0)
+    out->printer(out, "  ", 2);
 }
 
 static void print_key(struct prettify_data *pd, const char *path,
@@ -1287,11 +1320,12 @@ static void print_key(struct prettify_data *pd, const char *path,
       pd->last_token != JSON_TYPE_OBJECT_START) {
     pd->out->printer(pd->out, ",", 1);
   }
-  if (path[0] != '\0') pd->out->printer(pd->out, "\n", 1);
+  if (path[0] != '\0')
+    pd->out->printer(pd->out, "\n", 1);
   indent(pd->out, pd->level);
   if (path[0] != '\0' && path[strlen(path) - 1] != ']') {
     pd->out->printer(pd->out, "\"", 1);
-    pd->out->printer(pd->out, name, (int) name_len);
+    pd->out->printer(pd->out, name, (int)name_len);
     pd->out->printer(pd->out, "\"", 1);
     pd->out->printer(pd->out, ": ", 2);
   }
@@ -1299,38 +1333,39 @@ static void print_key(struct prettify_data *pd, const char *path,
 
 static void prettify_cb(void *userdata, const char *name, size_t name_len,
                         const char *path, const struct json_token *t) {
-  struct prettify_data *pd = (struct prettify_data *) userdata;
+  struct prettify_data *pd = (struct prettify_data *)userdata;
   switch (t->type) {
-    case JSON_TYPE_OBJECT_START:
-    case JSON_TYPE_ARRAY_START:
-      print_key(pd, path, name, name_len);
-      pd->out->printer(pd->out, t->type == JSON_TYPE_ARRAY_START ? "[" : "{",
-                       1);
-      pd->level++;
-      break;
-    case JSON_TYPE_OBJECT_END:
-    case JSON_TYPE_ARRAY_END:
-      pd->level--;
-      if (pd->last_token != JSON_TYPE_INVALID &&
-          pd->last_token != JSON_TYPE_ARRAY_START &&
-          pd->last_token != JSON_TYPE_OBJECT_START) {
-        pd->out->printer(pd->out, "\n", 1);
-        indent(pd->out, pd->level);
-      }
-      pd->out->printer(pd->out, t->type == JSON_TYPE_ARRAY_END ? "]" : "}", 1);
-      break;
-    case JSON_TYPE_NUMBER:
-    case JSON_TYPE_NULL:
-    case JSON_TYPE_TRUE:
-    case JSON_TYPE_FALSE:
-    case JSON_TYPE_STRING:
-      print_key(pd, path, name, name_len);
-      if (t->type == JSON_TYPE_STRING) pd->out->printer(pd->out, "\"", 1);
-      pd->out->printer(pd->out, t->ptr, t->len);
-      if (t->type == JSON_TYPE_STRING) pd->out->printer(pd->out, "\"", 1);
-      break;
-    default:
-      break;
+  case JSON_TYPE_OBJECT_START:
+  case JSON_TYPE_ARRAY_START:
+    print_key(pd, path, name, name_len);
+    pd->out->printer(pd->out, t->type == JSON_TYPE_ARRAY_START ? "[" : "{", 1);
+    pd->level++;
+    break;
+  case JSON_TYPE_OBJECT_END:
+  case JSON_TYPE_ARRAY_END:
+    pd->level--;
+    if (pd->last_token != JSON_TYPE_INVALID &&
+        pd->last_token != JSON_TYPE_ARRAY_START &&
+        pd->last_token != JSON_TYPE_OBJECT_START) {
+      pd->out->printer(pd->out, "\n", 1);
+      indent(pd->out, pd->level);
+    }
+    pd->out->printer(pd->out, t->type == JSON_TYPE_ARRAY_END ? "]" : "}", 1);
+    break;
+  case JSON_TYPE_NUMBER:
+  case JSON_TYPE_NULL:
+  case JSON_TYPE_TRUE:
+  case JSON_TYPE_FALSE:
+  case JSON_TYPE_STRING:
+    print_key(pd, path, name, name_len);
+    if (t->type == JSON_TYPE_STRING)
+      pd->out->printer(pd->out, "\"", 1);
+    pd->out->printer(pd->out, t->ptr, t->len);
+    if (t->type == JSON_TYPE_STRING)
+      pd->out->printer(pd->out, "\"", 1);
+    break;
+  default:
+    break;
   }
   pd->last_token = t->type;
 }
@@ -1365,13 +1400,13 @@ int json_prettify_file(const char *file_name) {
 }
 
 struct next_data {
-  void *handle;            // Passed handle. Changed if a next entry is found
-  const char *path;        // Path to the iterated object/array
-  int path_len;            // Path length - optimisation
-  int found;               // Non-0 if found the next entry
-  struct json_token *key;  // Object's key
-  struct json_token *val;  // Object's value
-  int *idx;                // Array index
+  void *handle;           // Passed handle. Changed if a next entry is found
+  const char *path;       // Path to the iterated object/array
+  int path_len;           // Path length - optimisation
+  int found;              // Non-0 if found the next entry
+  struct json_token *key; // Object's key
+  struct json_token *val; // Object's value
+  int *idx;               // Array index
 };
 
 static void next_set_key(struct next_data *d, const char *name, int name_len,
@@ -1382,35 +1417,43 @@ static void next_set_key(struct next_data *d, const char *name, int name_len,
       d->key->len = 0;
       d->key->ptr = NULL;
     }
-    if (d->idx != NULL) *d->idx = atoi(name);
+    if (d->idx != NULL)
+      *d->idx = atoi(name);
   } else {
     /* Object. Set key and make index -1 */
     if (d->key != NULL) {
       d->key->ptr = name;
       d->key->len = name_len;
     }
-    if (d->idx != NULL) *d->idx = -1;
+    if (d->idx != NULL)
+      *d->idx = -1;
   }
 }
 
 static void json_next_cb(void *userdata, const char *name, size_t name_len,
                          const char *path, const struct json_token *t) {
-  struct next_data *d = (struct next_data *) userdata;
+  struct next_data *d = (struct next_data *)userdata;
   const char *p = path + d->path_len;
-  if (d->found) return;
-  if (d->path_len >= (int) strlen(path)) return;
-  if (strncmp(d->path, path, d->path_len) != 0) return;
-  if (strchr(p + 1, '.') != NULL) return; /* More nested objects - skip */
-  if (strchr(p + 1, '[') != NULL) return; /* Ditto for arrays */
+  if (d->found)
+    return;
+  if (d->path_len >= (int)strlen(path))
+    return;
+  if (strncmp(d->path, path, d->path_len) != 0)
+    return;
+  if (strchr(p + 1, '.') != NULL)
+    return; /* More nested objects - skip */
+  if (strchr(p + 1, '[') != NULL)
+    return; /* Ditto for arrays */
   // {OBJECT,ARRAY}_END types do not pass name, _START does. Save key.
   if (t->type == JSON_TYPE_OBJECT_START || t->type == JSON_TYPE_ARRAY_START) {
     next_set_key(d, name, name_len, p[0] == '[');
-  } else if (d->handle == NULL || d->handle < (void *) t->ptr) {
+  } else if (d->handle == NULL || d->handle < (void *)t->ptr) {
     if (t->type != JSON_TYPE_OBJECT_END && t->type != JSON_TYPE_ARRAY_END) {
       next_set_key(d, name, name_len, p[0] == '[');
     }
-    if (d->val != NULL) *d->val = *t;
-    d->handle = (void *) t->ptr;
+    if (d->val != NULL)
+      *d->val = *t;
+    d->handle = (void *)t->ptr;
     d->found = 1;
   }
 }
@@ -1420,7 +1463,7 @@ static void *json_next(const char *s, int len, void *handle, const char *path,
   struct json_token tmpval, *v = val == NULL ? &tmpval : val;
   struct json_token tmpkey, *k = key == NULL ? &tmpkey : key;
   int tmpidx, *pidx = i == NULL ? &tmpidx : i;
-  struct next_data data = {handle, path, (int) strlen(path), 0, k, v, pidx};
+  struct next_data data = {handle, path, (int)strlen(path), 0, k, v, pidx};
   json_walk(s, len, json_next_cb, &data);
   return data.found ? data.handle : NULL;
 }
@@ -1442,7 +1485,7 @@ void *json_next_elem(const char *s, int len, void *handle, const char *path,
 static int json_sprinter(struct json_out *out, const char *str, size_t len) {
   size_t old_len = out->u.buf.buf == NULL ? 0 : strlen(out->u.buf.buf);
   size_t new_len = len + old_len;
-  char *p = (char *) realloc(out->u.buf.buf, new_len + 1);
+  char *p = (char *)realloc(out->u.buf.buf, new_len + 1);
   if (p != NULL) {
     memcpy(p + old_len, str, len);
     p[new_len] = '\0';
