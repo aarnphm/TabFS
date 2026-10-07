@@ -750,9 +750,6 @@ Routes["/runtime/reload"] = {
   truncate() { return {}; }
 };
 
-fetch(chrome.runtime.getURL('background.js'))
-  .then(async r => { globalThis.__backgroundJS = await r.text(); });
-
 Routes["/runtime/routes.html"] = makeRouteWithContents(async () => {
   if (!globalThis.__backgroundJS) throw new UnixError(unix.EIO);
 
@@ -944,21 +941,38 @@ function tryMatchRoute(path) {
 }
 
 let port;
-async function onMessage(req) {
-  if (req.buf) req.buf = atob(req.buf);
-  console.log('req', req);
+let reconnectTimer;
+let reconnectDelay = 1000;
+const CONNECTION_ALARM = 'tabfs-connect';
+
+function postResponse(requestPort, response) {
+  // An old request must never send a reply to a replacement native host.
+  if (port !== requestPort) return;
+  try {
+    requestPort.postMessage(response);
+  } catch (error) {
+    console.warn('TabFS could not reply to the disconnected native host', error);
+  }
+}
+
+async function onMessage(req, requestPort = port) {
 
   let response = { op: req.op, error: unix.EIO };
   let didTimeout = false, timeout = setTimeout(() => {
     // timeout is very useful because some operations just hang
     // (like trying to take a screenshot, until the tab is focused)
-    didTimeout = true; console.error('timeout');
-    port.postMessage({ id: req.id, op: req.op, error: unix.ETIMEDOUT });
+    didTimeout = true;
+    console.error('TabFS request timed out', req.op, req.path);
+    postResponse(requestPort, { id: req.id, op: req.op, error: unix.ETIMEDOUT });
   }, 1000);
 
   /* console.time(req.op + ':' + req.path);*/
   try {
+    if (req.buf) req.buf = atob(req.buf);
     const [route, vars] = tryMatchRoute(req.path);
+    if (typeof route[req.op] !== 'function') {
+      throw new UnixError(unix.ENOTSUP);
+    }
     response = await route[req.op]({...req, ...vars});
     response.op = req.op;
     if (response.buf) {
@@ -970,7 +984,9 @@ async function onMessage(req) {
     }
 
   } catch (e) {
-    console.error(e);
+    if (!(e instanceof UnixError)) {
+      console.error('TabFS request failed', req.op, req.path, e);
+    }
     response = {
       op: req.op,
       error: e instanceof UnixError ? e.error : unix.EIO
@@ -981,11 +997,19 @@ async function onMessage(req) {
   if (!didTimeout) {
     clearTimeout(timeout);
 
-    console.log('resp', response);
     response.id = req.id;
-    port.postMessage(response);
+    postResponse(requestPort, response);
   }
 };
+
+function scheduleReconnect() {
+  if (reconnectTimer !== undefined) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = undefined;
+    tryConnect();
+  }, reconnectDelay);
+  reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+}
 
 function tryConnect() {
   // Safari is very weird -- it has this native app that we have to talk to,
@@ -1020,16 +1044,37 @@ function tryConnect() {
     return;
   }
 
-  port = chrome.runtime.connectNative('com.rsnous.tabfs');
-  port.onMessage.addListener(onMessage);
-  port.onDisconnect.addListener(p => {
-    console.log('disconnect', p);
-    // mv3: service worker may have slept, or native host disconnected
-    // attempt reconnect after a delay
-    setTimeout(tryConnect, 1000);
+  if (port) return;
+  clearTimeout(reconnectTimer);
+  reconnectTimer = undefined;
+
+  const nativePort = chrome.runtime.connectNative('com.rsnous.tabfs');
+  port = nativePort;
+  nativePort.onMessage.addListener(req => {
+    reconnectDelay = 1000;
+    onMessage(req, nativePort);
+  });
+  nativePort.onDisconnect.addListener(() => {
+    const error = chrome.runtime.lastError;
+    if (error) console.warn('TabFS native host disconnected', error.message);
+    if (port !== nativePort) return;
+    port = undefined;
+    scheduleReconnect();
   });
 }
 
+async function ensureConnectionAlarm() {
+  if (!(await chrome.alarms.get(CONNECTION_ALARM))) {
+    await chrome.alarms.create(CONNECTION_ALARM, { periodInMinutes: 1 });
+  }
+}
+
+function startConnection() {
+  tryConnect();
+  ensureConnectionAlarm().catch(error => {
+    console.error('TabFS could not schedule connection recovery', error);
+  });
+}
 
 if (typeof process === 'object') {
   // we're running in node (as part of a test)
@@ -1037,6 +1082,18 @@ if (typeof process === 'object') {
   module.exports = {Routes, tryMatchRoute};
 
 } else {
-  tryConnect();
-}
+  fetch(chrome.runtime.getURL('background.js'))
+    .then(async r => { globalThis.__backgroundJS = await r.text(); })
+    .catch(error => console.error('TabFS could not load route documentation', error));
 
+  if (chrome.runtime.getURL('/').startsWith('safari-web-extension://')) {
+    tryConnect();
+  } else {
+    chrome.runtime.onStartup.addListener(startConnection);
+    chrome.runtime.onInstalled.addListener(startConnection);
+    chrome.alarms.onAlarm.addListener(alarm => {
+      if (alarm.name === CONNECTION_ALARM) tryConnect();
+    });
+    startConnection();
+  }
+}

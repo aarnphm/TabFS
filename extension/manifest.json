@@ -4,6 +4,7 @@
   "description": "Mount your browser tabs as a filesystem",
   "version": "1.0",
   "permissions": [
+    "alarms",
     "tabs",
     "tabCapture",
     "debugger",

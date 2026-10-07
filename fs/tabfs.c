@@ -403,7 +403,23 @@ static int tabfs_mknod(const char *path, mode_t mode, dev_t rdev) {
   return 0;
 }
 
+static void *tabfs_init(struct fuse_conn_info *conn) {
+  (void)conn;
+
+  // Mounting launches a helper process; start the reader after that fork.
+  pthread_t thread;
+  int err = pthread_create(&thread, NULL, reader_main, NULL);
+  if (err != 0) {
+    eprintln("pthread_create: %s", strerror(err));
+    exit(1);
+  }
+
+  pthread_detach(thread);
+  return NULL;
+}
+
 static const struct fuse_operations tabfs_oper = {
+    .init = tabfs_init,
     .getattr = tabfs_getattr,
     .readlink = tabfs_readlink,
 
@@ -446,15 +462,6 @@ int main(int argc, char **argv) {
 #endif
 
   system("mkdir -p \"$TABFS_MOUNT_DIR\"");
-
-  pthread_t thread;
-  int err = pthread_create(&thread, NULL, reader_main, NULL);
-  if (err != 0) {
-    eprintln("pthread_create: %s", strerror(err));
-    exit(1);
-  }
-
-  pthread_detach(thread);
 
   char *fuse_argv[] = {
       argv[0],
